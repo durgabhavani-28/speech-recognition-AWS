@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speech Sentiment Analysis</title>
+</head>
+<body>
+    <h1>Speech Sentiment Analysis</h1>
+    <button id="listenButton">Listen</button>
+    <button id="stopButton">Stop</button>
+    <p id="textOutput"></p>
+    <p id="sentimentOutput"></p>
+    <audio id="emotionSong" controls></audio>
+
+    <script>
+        const listenButton = document.getElementById('listenButton');
+        const stopButton = document.getElementById('stopButton');
+        const textOutput = document.getElementById('textOutput');
+        const sentimentOutput = document.getElementById('sentimentOutput');
+        const emotionSong = document.getElementById('emotionSong');
+
+        let recognition;
+        let isListening = false;
+
+        if ('webkitSpeechRecognition' in window) {
+            recognition = new webkitSpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+
+            recognition.onstart = function() {
+                isListening = true;
+            };
+
+            recognition.onresult = function(event) {
+                let interimTranscript = '';
+                let finalTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript;
+                    } else {
+                        interimTranscript += event.results[i][0].transcript;
+                    }
+                }
+                textOutput.innerHTML = interimTranscript + '<br>' + finalTranscript;
+            };
+
+            recognition.onerror = function(event) {
+                console.error(event.error);
+            };
+
+            recognition.onend = function() {
+                isListening = false;
+            };
+        } else {
+            alert('Speech recognition is not supported in this browser.');
+        }
+
+        listenButton.addEventListener('click', () => {
+            if (!isListening) {
+                recognition.start();
+            }
+        });
+
+        stopButton.addEventListener('click', () => {
+            if (isListening) {
+                recognition.stop();
+                const text = textOutput.innerHTML.replace(/<br>/g, ' ').trim();
+                fetch('/sentiment', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ text }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    sentimentOutput.innerHTML = 'Sentiment: ' + data.sentiment;
+                    if (data.song) {
+                        emotionSong.src = '/static/' + data.song;
+                        emotionSong.play();
+                    } else {
+                        emotionSong.pause();
+                        emotionSong.src = '';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+            }
+        });
+    </script>
+</body>
+</html>
